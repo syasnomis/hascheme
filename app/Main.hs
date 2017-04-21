@@ -2,7 +2,7 @@ module Main where
 import Text.ParserCombinators.Parsec hiding (spaces)
 import System.Environment
 import Control.Monad
-import Numeric (readDec, readHex, readOct)
+import Numeric (readDec, readHex, readOct, readFloat)
 
 data LispVal = Atom String
              | List [LispVal]
@@ -10,6 +10,8 @@ data LispVal = Atom String
              | Number Integer
              | String String
              | Bool Bool
+             | Character Char
+             | Float Float 
              deriving (Show)
 
 nonEscape :: Parser Char
@@ -32,6 +34,16 @@ parseString = do
                 x <- many  (escape <|> nonEscape)
                 char '"'
                 return $ String x
+
+parseChar :: Parser LispVal
+parseChar = try $ do
+              char '#'
+              char '\\'
+              (q:rest) <- many (letter <|> symbol <|> oneOf "()")
+              return . Character $ case (q:rest) of
+                          "space" -> ' '
+                          "newline" -> '\n'
+                          _ -> q
 
 parseAtom :: Parser LispVal
 parseAtom = do
@@ -66,11 +78,19 @@ parseNumPrefix = try $ do
                      'd' -> liftM readDec $ many1 digit
                      'x' -> liftM readHex $ many1 (letter <|> digit)
 
+parseFloat :: Parser LispVal
+parseFloat = try $ do
+              whole <- many1 digit
+              char '.'
+              frac <- many1 digit
+              return $ (Float . fst . head) $ readFloat (whole ++ "." ++ frac) 
+
 parseNumber :: Parser LispVal
-parseNumber = parseNumPrefix <|> parseNumber1 
+parseNumber = parseFloat <|> parseNumPrefix <|> parseNumber1
 
 parseExpr :: Parser LispVal
 parseExpr =  parseBool
+         <|> parseChar
          <|> parseAtom
          <|> parseString
          <|> parseNumber
